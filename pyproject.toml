@@ -1,0 +1,16 @@
+[project]
+name = "dvc-experiment"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dvc",
+    "hydra-core",
+    "joblib",
+    "matplotlib>=3.11.1",
+    "mlflow",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.5",
+    "python-dotenv",
+]

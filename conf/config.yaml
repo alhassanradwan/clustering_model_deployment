@@ -1,0 +1,39 @@
+defaults:
+  - _self_
+
+data:
+  path: Online Retail.xlsx
+  country: United Kingdom
+  drop_duplicates: true
+  drop_missing_customer: true
+  drop_zero_price: true
+  # Cancellations (invoices starting with C) are never deleted. Recency/Frequency
+  # come from purchases only; Monetary nets refunds against purchases.
+  cancellation_prefix: C
+  drop_non_positive_monetary: true
+
+features:
+  columns: [Recency, Frequency, Monetary]
+  log_transform: true
+  scaler: standard   # standard | robust | minmax | none
+
+model:
+  n_clusters: 5
+  random_state: 42
+  n_init: 10
+
+evaluate:
+  stability_seeds: 10
+
+output:
+  dir: artifacts
+  save_target: true
+  save_model: true
+
+mlflow:
+  enabled: true
+  # MLflow 3.x retired the ./mlruns file store; sqlite is the supported local
+  # backend. Relative paths are resolved against the project root, not the
+  # Hydra run directory.
+  tracking_uri: sqlite:///mlflow.db
+  experiment_name: rfm-segmentation

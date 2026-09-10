@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Hydra / MLflow run outputs
+outputs/
+multirun/
+mlflow.db
+artifacts/
+
+# Data outputs
+target_dataset.xlsx
+target_dataset.csv
+
+# Secrets
+.env
