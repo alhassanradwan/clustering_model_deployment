@@ -1,4 +1,4 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -6,18 +6,27 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Virtual environment
 .venv
 
-# Hydra / MLflow run outputs
+# Secrets — .env.example is committed as the template
+.env
+
+# Hydra run directories
 outputs/
 multirun/
+
+# Local MLflow tracking (runs now go to DagsHub)
 mlflow.db
-artifacts/
+mlruns/
 
-# Data outputs
-target_dataset.xlsx
-target_dataset.csv
+# Notebook exports — the pipeline writes data/target_dataset.csv instead
+target_dataset*.xlsx
+target_dataset*.csv
 
-# Secrets
-.env
+# DVC-managed outputs are ignored by the .gitignore files DVC writes
+# into data/ and models/. metrics.json is deliberately NOT ignored: it is
+# small, and keeping it in git is what makes `dvc metrics diff` useful.
+
+# Tracked by DVC (see "Online Retail.xlsx.dvc")
+/Online Retail.xlsx

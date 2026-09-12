@@ -1,14 +1,33 @@
 defaults:
   - _self_
 
+# Hydra writes its own run directory per invocation. DVC stages pin it to a
+# fixed folder (see dvc.yaml) so repro does not create a new timestamped
+# directory on every run.
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+paths:
+  raw: Online Retail.xlsx
+  target: data/target_dataset.csv
+  features: data/features.csv
+  model: models/kmeans.joblib
+  # metrics.json stays at the root and out of the DVC cache so `dvc metrics
+  # show` finds it and git can diff it across commits.
+  metrics: metrics.json
+  profile: reports/cluster_profile.csv
+  segmented: data/segmented_customers.csv
+
 data:
-  path: Online Retail.xlsx
   country: United Kingdom
   drop_duplicates: true
   drop_missing_customer: true
   drop_zero_price: true
-  # Cancellations (invoices starting with C) are never deleted. Recency/Frequency
-  # come from purchases only; Monetary nets refunds against purchases.
+  # Cancellations (invoices starting with C) are never deleted. Recency and
+  # Frequency come from purchases only; Monetary nets refunds against
+  # purchases, so a fully cancelled order is worth zero rather than inventing
+  # revenue that never existed.
   cancellation_prefix: C
   drop_non_positive_monetary: true
 
@@ -25,15 +44,9 @@ model:
 evaluate:
   stability_seeds: 10
 
-output:
-  dir: artifacts
-  save_target: true
-  save_model: true
-
 mlflow:
   enabled: true
   # MLflow 3.x retired the ./mlruns file store; sqlite is the supported local
-  # backend. Relative paths are resolved against the project root, not the
-  # Hydra run directory.
+  # backend. Relative paths resolve against the project root.
   tracking_uri: sqlite:///mlflow.db
   experiment_name: rfm-segmentation

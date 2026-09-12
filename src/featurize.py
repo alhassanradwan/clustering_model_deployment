@@ -1,26 +1,33 @@
-"""RFM preprocessing for the Online Retail dataset.
+"""DVC stage 1: raw Excel -> customer-level RFM table and scaled feature matrix.
 
-Mirrors preprocessing.ipynb. Follows Chen et al. (2012), pages 4-5.
+    uv run python src/featurize.py
+    uv run python src/featurize.py features.scaler=robust
 
-The one rule that matters here: cancellations are never deleted from `df`.
-Deleting a C invoice removes the refund but keeps the original order, which
-invents revenue that never existed (1,382 customers, GBP 528,823 in this data).
-Instead, Recency/Frequency come from purchases only, while Monetary is summed
-over everything so refunds subtract.
+Follows Chen et al. (2012), pages 4-5. The rule that matters: cancellations are
+never deleted from the transaction frame. Deleting a C invoice removes the
+refund but keeps the original order, which invents revenue that never existed
+(1,382 customers and GBP 528,823 in this dataset). Instead, Recency and
+Frequency are computed from purchases only, while Monetary sums everything so
+refunds subtract.
 """
 
 from __future__ import annotations
 
+import logging
+import os
+
+import hydra
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
+log = logging.getLogger(__name__)
+
 
 def load(cfg: DictConfig, root: str) -> pd.DataFrame:
     """Read the raw Excel file and apply row-level cleaning."""
-    import os
-
-    df = pd.read_excel(os.path.join(root, cfg.data.path))
+    df = pd.read_excel(os.path.join(root, cfg.paths.raw))
+    log.info("raw rows: %d", len(df))
 
     if cfg.data.drop_duplicates:
         df = df.drop_duplicates()
@@ -41,14 +48,15 @@ def load(cfg: DictConfig, root: str) -> pd.DataFrame:
     df = df.drop(columns="InvoiceDate")
 
     df["Amount"] = df["Quantity"] * df["UnitPrice"]
+    log.info("cleaned rows: %d", len(df))
     return df
 
 
 def build_target(cfg: DictConfig, df: pd.DataFrame) -> pd.DataFrame:
     """Aggregate transactions into one row per customer (paper Figure 1 columns)."""
-    prefix = cfg.data.cancellation_prefix
-    is_cancel = df["InvoiceNo"].astype(str).str.startswith(prefix)
+    is_cancel = df["InvoiceNo"].astype(str).str.startswith(cfg.data.cancellation_prefix)
     purchases = df[~is_cancel]
+    log.info("cancellations: %d | purchases: %d", is_cancel.sum(), len(purchases))
 
     snapshot = df["Date"].max() + pd.Timedelta(days=1)
 
@@ -66,7 +74,9 @@ def build_target(cfg: DictConfig, df: pd.DataFrame) -> pd.DataFrame:
 
     target = target.round(2)
     if cfg.data.drop_non_positive_monetary:
+        dropped = (target["Monetary"] <= 0).sum()
         target = target[target["Monetary"] > 0]
+        log.info("dropped %d customers with non-positive Monetary", dropped)
 
     target = target.reset_index()
     return target[[
@@ -75,7 +85,7 @@ def build_target(cfg: DictConfig, df: pd.DataFrame) -> pd.DataFrame:
     ]]
 
 
-def build_features(cfg: DictConfig, target: pd.DataFrame) -> np.ndarray:
+def build_features(cfg: DictConfig, target: pd.DataFrame) -> pd.DataFrame:
     """Log-transform and scale the RFM columns into the K-Means input matrix."""
     from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
@@ -84,17 +94,35 @@ def build_features(cfg: DictConfig, target: pd.DataFrame) -> np.ndarray:
 
     if cfg.features.log_transform:
         frame = np.log1p(frame)
-
-    scalers = {
-        "standard": StandardScaler,
-        "robust": RobustScaler,
-        "minmax": MinMaxScaler,
-    }
+        log.info("skew after log1p: %s", frame.skew().round(2).to_dict())
 
     name = str(cfg.features.scaler).lower()
     if name in ("none", "null", ""):
-        return frame.to_numpy()
+        return frame
+
+    scalers = {"standard": StandardScaler, "robust": RobustScaler, "minmax": MinMaxScaler}
     if name not in scalers:
         raise ValueError(f"unknown scaler {name!r}; expected one of {list(scalers)} or 'none'")
 
-    return scalers[name]().fit_transform(frame)
+    return pd.DataFrame(scalers[name]().fit_transform(frame), columns=cols)
+
+
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(cfg: DictConfig) -> None:
+    root = hydra.utils.get_original_cwd()
+
+    df = load(cfg, root)
+    target = build_target(cfg, df)
+    features = build_features(cfg, target)
+    log.info("customers: %d | features: %s", len(target), tuple(features.shape))
+
+    for rel in (cfg.paths.target, cfg.paths.features):
+        os.makedirs(os.path.dirname(os.path.join(root, rel)) or ".", exist_ok=True)
+
+    target.to_csv(os.path.join(root, cfg.paths.target), index=False)
+    features.to_csv(os.path.join(root, cfg.paths.features), index=False)
+    log.info("wrote %s and %s", cfg.paths.target, cfg.paths.features)
+
+
+if __name__ == "__main__":
+    main()

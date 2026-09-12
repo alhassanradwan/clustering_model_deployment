@@ -1,0 +1,44 @@
+stages:
+  featurize:
+    cmd: python src/featurize.py hydra.run.dir=outputs/dvc/featurize
+    deps:
+      - Online Retail.xlsx
+      - src/featurize.py
+    params:
+      - conf/config.yaml:
+          - data
+          - features
+          - paths
+    outs:
+      - data/target_dataset.csv
+      - data/features.csv
+
+  train:
+    cmd: python src/train.py hydra.run.dir=outputs/dvc/train
+    deps:
+      - data/features.csv
+      - src/train.py
+    params:
+      - conf/config.yaml:
+          - model
+    outs:
+      - models/kmeans.joblib
+
+  evaluate:
+    cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
+    deps:
+      - data/features.csv
+      - data/target_dataset.csv
+      - models/kmeans.joblib
+      - src/evaluate.py
+    params:
+      - conf/config.yaml:
+          - evaluate
+          - model
+          - mlflow
+    outs:
+      - data/segmented_customers.csv
+      - reports/cluster_profile.csv
+    metrics:
+      - metrics.json:
+          cache: false

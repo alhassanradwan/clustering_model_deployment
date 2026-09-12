@@ -1,0 +1,112 @@
+schema: '2.0'
+stages:
+  featurize:
+    cmd: python src/featurize.py hydra.run.dir=outputs/dvc/featurize
+    deps:
+    - path: Online Retail.xlsx
+      hash: md5
+      md5: 8f8e6d94ba88f976f4d8290cb2dea7fd
+      size: 23715344
+    - path: src/featurize.py
+      hash: md5
+      md5: 55af7865d535349fe9a59d7b0b5c77b7
+      size: 4521
+    params:
+      conf/config.yaml:
+        data:
+          country: United Kingdom
+          drop_duplicates: true
+          drop_missing_customer: true
+          drop_zero_price: true
+          cancellation_prefix: C
+          drop_non_positive_monetary: true
+        features:
+          columns:
+          - Recency
+          - Frequency
+          - Monetary
+          log_transform: true
+          scaler: standard
+        paths:
+          raw: Online Retail.xlsx
+          target: data/target_dataset.csv
+          features: data/features.csv
+          model: models/kmeans.joblib
+          metrics: metrics.json
+          profile: reports/cluster_profile.csv
+          segmented: data/segmented_customers.csv
+    outs:
+    - path: data/features.csv
+      hash: md5
+      md5: 52d5d044d2e1eee16ac2c47ca2e2c232
+      size: 233694
+    - path: data/target_dataset.csv
+      hash: md5
+      md5: 9d734e712aaff984383c544e2e18eac2
+      size: 153262
+  train:
+    cmd: python src/train.py hydra.run.dir=outputs/dvc/train
+    deps:
+    - path: data/features.csv
+      hash: md5
+      md5: 52d5d044d2e1eee16ac2c47ca2e2c232
+      size: 233694
+    - path: src/train.py
+      hash: md5
+      md5: da282a9b9b1b3ea2fe5ccd3abd09157d
+      size: 1454
+    params:
+      conf/config.yaml:
+        model:
+          n_clusters: 5
+          random_state: 42
+          n_init: 10
+    outs:
+    - path: models/kmeans.joblib
+      hash: md5
+      md5: fabc4dd93faae804e5294073799044f9
+      size: 16751
+  evaluate:
+    cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
+    deps:
+    - path: data/features.csv
+      hash: md5
+      md5: 52d5d044d2e1eee16ac2c47ca2e2c232
+      size: 233694
+    - path: data/target_dataset.csv
+      hash: md5
+      md5: 9d734e712aaff984383c544e2e18eac2
+      size: 153262
+    - path: models/kmeans.joblib
+      hash: md5
+      md5: fabc4dd93faae804e5294073799044f9
+      size: 16751
+    - path: src/evaluate.py
+      hash: md5
+      md5: 1c1ef53828a1bff5341f87b9027048d3
+      size: 5990
+    params:
+      conf/config.yaml:
+        evaluate:
+          stability_seeds: 10
+        mlflow:
+          enabled: true
+          tracking_uri: sqlite:///mlflow.db
+          experiment_name: rfm-segmentation
+        model:
+          n_clusters: 5
+          random_state: 42
+          n_init: 10
+    outs:
+    - path: data/segmented_customers.csv
+      hash: md5
+      md5: cb68574b2a14a3036574bf63951f28be
+      size: 161074
+    - path: metrics.json
+      hash: md5
+      md5: 18d25f152e4b22001bcf929609033ae7
+      size: 286
+    - path: reports/cluster_profile.csv
+      hash: md5
+      md5: f9c8c6356e43822ab0c473a2cf21660d
+      size: 288
