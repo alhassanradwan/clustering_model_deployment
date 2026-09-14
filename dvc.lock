@@ -68,7 +68,7 @@ stages:
       size: 11715
     - path: models/model.joblib
       hash: md5
-      md5: 988a10c6186f42cd2fa8fc7bde597eeb
+      md5: 170992aff26411dd62e1d282613207ea
       size: 16751
   evaluate:
     cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
@@ -92,7 +92,7 @@ stages:
       size: 153262
     - path: models/model.joblib
       hash: md5
-      md5: 988a10c6186f42cd2fa8fc7bde597eeb
+      md5: 170992aff26411dd62e1d282613207ea
       size: 16751
     - path: src/evaluate.py
       hash: md5
@@ -113,8 +113,8 @@ stages:
       size: 161074
     - path: metrics.json
       hash: md5
-      md5: ebd33c14f665eb7c6cc46a230a1a32ef
-      size: 335
+      md5: e934ea06342c81b1bb0dd897953485fd
+      size: 334
     - path: reports/cluster_profile.csv
       hash: md5
       md5: f9c8c6356e43822ab0c473a2cf21660d
