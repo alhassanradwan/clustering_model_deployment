@@ -1,0 +1,6 @@
+algorithm: dbscan
+# eps is the neighbourhood radius in scaled-feature space; min_samples is how
+# many points must fall inside it to form a core point. Points in no
+# neighbourhood are labelled -1 (noise).
+eps: 2
+min_samples: 10

@@ -31,7 +31,8 @@ stages:
           raw: Online Retail.xlsx
           target: data/target_dataset.csv
           features: data/features.csv
-          model: models/kmeans.joblib
+          model: models/model.joblib
+          labels: data/labels.csv
           metrics: metrics.json
           profile: reports/cluster_profile.csv
           segmented: data/segmented_customers.csv
@@ -47,44 +48,56 @@ stages:
   train:
     cmd: python src/train.py hydra.run.dir=outputs/dvc/train
     deps:
+    - path: conf/model
+      hash: md5
+      md5: f3945ae0d55d04047fb812765e672fff.dir
+      size: 291
+      nfiles: 2
     - path: data/features.csv
       hash: md5
       md5: 52d5d044d2e1eee16ac2c47ca2e2c232
       size: 233694
     - path: src/train.py
       hash: md5
-      md5: da282a9b9b1b3ea2fe5ccd3abd09157d
-      size: 1454
-    params:
-      conf/config.yaml:
-        model:
-          n_clusters: 5
-          random_state: 42
-          n_init: 10
+      md5: 8e7873a2c5b59941d2f033f5b48f8d8a
+      size: 2122
     outs:
-    - path: models/kmeans.joblib
+    - path: data/labels.csv
       hash: md5
-      md5: fabc4dd93faae804e5294073799044f9
+      md5: d37f51c539395d9948e88456b70fdd40
+      size: 11715
+    - path: models/model.joblib
+      hash: md5
+      md5: 1460cc57c5cfb5d6589224be14fe1986
       size: 16751
   evaluate:
     cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
     deps:
+    - path: conf/model
+      hash: md5
+      md5: f3945ae0d55d04047fb812765e672fff.dir
+      size: 291
+      nfiles: 2
     - path: data/features.csv
       hash: md5
       md5: 52d5d044d2e1eee16ac2c47ca2e2c232
       size: 233694
+    - path: data/labels.csv
+      hash: md5
+      md5: d37f51c539395d9948e88456b70fdd40
+      size: 11715
     - path: data/target_dataset.csv
       hash: md5
       md5: 9d734e712aaff984383c544e2e18eac2
       size: 153262
-    - path: models/kmeans.joblib
+    - path: models/model.joblib
       hash: md5
-      md5: fabc4dd93faae804e5294073799044f9
+      md5: 1460cc57c5cfb5d6589224be14fe1986
       size: 16751
     - path: src/evaluate.py
       hash: md5
-      md5: 1c1ef53828a1bff5341f87b9027048d3
-      size: 5990
+      md5: 2e887ceb2439b0b6493057be7b034729
+      size: 7656
     params:
       conf/config.yaml:
         evaluate:
@@ -93,10 +106,6 @@ stages:
           enabled: true
           tracking_uri: sqlite:///mlflow.db
           experiment_name: rfm-segmentation
-        model:
-          n_clusters: 5
-          random_state: 42
-          n_init: 10
     outs:
     - path: data/segmented_customers.csv
       hash: md5
@@ -104,8 +113,8 @@ stages:
       size: 161074
     - path: metrics.json
       hash: md5
-      md5: 18d25f152e4b22001bcf929609033ae7
-      size: 286
+      md5: e934ea06342c81b1bb0dd897953485fd
+      size: 334
     - path: reports/cluster_profile.csv
       hash: md5
       md5: f9c8c6356e43822ab0c473a2cf21660d

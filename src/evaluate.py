@@ -9,7 +9,7 @@ Inertia alone cannot tell you whether a clustering is real - it always falls as
 k rises. The metrics here answer three separate questions: are the clusters
 separated (silhouette, Davies-Bouldin, Calinski-Harabasz), does every cluster
 hold together (per-cluster silhouette, misfit rate), and would you get the same
-grouping again (ARI across random seeds).
+grouping again (ARI across seeds, or across subsamples for DBSCAN).
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ import joblib
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from omegaconf import DictConfig
-from sklearn.cluster import KMeans
+from omegaconf import DictConfig, OmegaConf
+from sklearn.cluster import DBSCAN, KMeans
 from sklearn.metrics import (
     adjusted_rand_score,
     calinski_harabasz_score,
@@ -65,35 +65,74 @@ def _resolve_tracking_uri(cfg: DictConfig, root: str) -> str:
     return uri
 
 
-def score(cfg: DictConfig, X: pd.DataFrame, labels: np.ndarray) -> dict:
-    metrics = {
-        "silhouette": float(silhouette_score(X, labels)),
-        "davies_bouldin": float(davies_bouldin_score(X, labels)),
-        "calinski_harabasz": float(calinski_harabasz_score(X, labels)),
-        "misfit_rate": float((silhouette_samples(X, labels) < 0).mean()),
-    }
+def _run_name(cfg: DictConfig) -> str:
+    if str(cfg.model.algorithm).lower() == "kmeans":
+        return f"kmeans-k{cfg.model.n_clusters}"
+    return f"dbscan-eps{cfg.model.eps}-min{cfg.model.min_samples}"
 
-    # Stability: refit from different starting seeds and compare the grouping.
-    # ARI is 1.0 for identical partitions and 0.0 for chance agreement, so a
-    # high value means the segments are a feature of the data rather than an
-    # artefact of where K-Means happened to start.
-    seeds = int(cfg.evaluate.stability_seeds)
-    if seeds > 1:
-        aris = [
-            adjusted_rand_score(
-                labels,
-                KMeans(
-                    n_clusters=cfg.model.n_clusters,
-                    random_state=seed,
-                    n_init=cfg.model.n_init,
-                ).fit_predict(X),
-            )
-            for seed in range(seeds)
-        ]
-        metrics["stability_ari_mean"] = float(np.mean(aris))
-        metrics["stability_ari_min"] = float(np.min(aris))
 
+def score(cfg: DictConfig, X: pd.DataFrame, labels: np.ndarray, model) -> dict:
+    metrics = {"n_clusters_found": len(set(labels) - {-1})}
+
+    # DBSCAN labels outliers -1. That is not a cluster, so including those
+    # points would make every separation metric meaningless. Score the
+    # clustered points and report the noise share separately.
+    keep = labels != -1
+    metrics["noise_rate"] = float((~keep).mean())
+    Xc, lc = X[keep], labels[keep]
+
+    if metrics["n_clusters_found"] < 2:
+        log.warning("fewer than 2 clusters found - separation metrics skipped")
+        return metrics
+
+    metrics["silhouette"] = float(silhouette_score(Xc, lc))
+    metrics["davies_bouldin"] = float(davies_bouldin_score(Xc, lc))
+    metrics["calinski_harabasz"] = float(calinski_harabasz_score(Xc, lc))
+    metrics["misfit_rate"] = float((silhouette_samples(Xc, lc) < 0).mean())
+
+    # Inertia only exists for centroid-based models.
+    if hasattr(model, "inertia_"):
+        metrics["inertia"] = float(model.inertia_)
+
+    metrics.update(_stability(cfg, X, labels))
     return metrics
+
+
+def _stability(cfg: DictConfig, X: pd.DataFrame, labels: np.ndarray) -> dict:
+    """Would you get the same grouping again?
+
+    ARI is 1.0 for identical partitions and 0.0 for chance agreement.
+
+    K-Means is seeded, so refitting with different seeds tests whether the
+    segments survive a different starting position. DBSCAN is deterministic -
+    seeds would give 1.0 every time and measure nothing - so it is refitted on
+    random 80% subsamples and compared on the rows they share.
+    """
+    n = int(cfg.evaluate.stability_seeds)
+    if n < 2:
+        return {}
+
+    algo = str(cfg.model.algorithm).lower()
+    rng = np.random.default_rng(0)
+    aris = []
+
+    for i in range(n):
+        if algo == "kmeans":
+            other = KMeans(
+                n_clusters=cfg.model.n_clusters,
+                random_state=i,
+                n_init=cfg.model.n_init,
+            ).fit_predict(X)
+            aris.append(adjusted_rand_score(labels, other))
+        else:
+            idx = rng.choice(len(X), int(0.8 * len(X)), replace=False)
+            other = DBSCAN(eps=cfg.model.eps, min_samples=cfg.model.min_samples).fit_predict(X.iloc[idx])
+            aris.append(adjusted_rand_score(labels[idx], other))
+
+    return {
+        "stability_ari_mean": float(np.mean(aris)),
+        "stability_ari_min": float(np.min(aris)),
+    }
 
 
 def profile(target: pd.DataFrame) -> pd.DataFrame:
@@ -119,11 +158,12 @@ def main(cfg: DictConfig) -> None:
     target = pd.read_csv(os.path.join(root, cfg.paths.target))
     model = joblib.load(os.path.join(root, cfg.paths.model))
 
-    labels = model.predict(X)
+    # Labels come from train.py rather than model.predict(): DBSCAN has no
+    # predict() and can only label the data it was fitted on.
+    labels = pd.read_csv(os.path.join(root, cfg.paths.labels))["Cluster"].to_numpy()
     target["Cluster"] = labels
 
-    metrics = score(cfg, X, labels)
-    metrics["inertia"] = float(model.inertia_)
+    metrics = score(cfg, X, labels, model)
     summary = profile(target)
 
     log.info("cluster profile:\n%s", summary.to_string())
@@ -144,15 +184,15 @@ def main(cfg: DictConfig) -> None:
         log.info("mlflow tracking uri: %s", uri)
         mlflow.set_tracking_uri(uri)
         mlflow.set_experiment(cfg.mlflow.experiment_name)
-        with mlflow.start_run(run_name=f"kmeans-k{cfg.model.n_clusters}"):
-            mlflow.log_params({
-                "n_clusters": cfg.model.n_clusters,
-                "random_state": cfg.model.random_state,
+        with mlflow.start_run(run_name=_run_name(cfg)):
+            params = OmegaConf.to_container(cfg.model, resolve=True)
+            params.update({
                 "log_transform": cfg.features.log_transform,
                 "scaler": cfg.features.scaler,
                 "country": cfg.data.country,
                 "n_customers": len(target),
             })
+            mlflow.log_params(params)
             mlflow.log_metrics(metrics)
             mlflow.set_tag("dvc_stage", "evaluate")
             mlflow.log_artifact(os.path.join(root, cfg.paths.metrics))

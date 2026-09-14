@@ -1,4 +1,6 @@
 defaults:
+  # Swap algorithms with `model=dbscan` on the command line.
+  - model: kmeans
   - _self_
 
 # Hydra writes its own run directory per invocation. DVC stages pin it to a
@@ -12,7 +14,8 @@ paths:
   raw: Online Retail.xlsx
   target: data/target_dataset.csv
   features: data/features.csv
-  model: models/kmeans.joblib
+  model: models/model.joblib
+  labels: data/labels.csv
   # metrics.json stays at the root and out of the DVC cache so `dvc metrics
   # show` finds it and git can diff it across commits.
   metrics: metrics.json
@@ -35,11 +38,6 @@ features:
   columns: [Recency, Frequency, Monetary]
   log_transform: true
   scaler: standard   # standard | robust | minmax | none
-
-model:
-  n_clusters: 5
-  random_state: 42
-  n_init: 10
 
 evaluate:
   stability_seeds: 10

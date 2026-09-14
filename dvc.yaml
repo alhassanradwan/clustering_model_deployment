@@ -18,23 +18,25 @@ stages:
     deps:
       - data/features.csv
       - src/train.py
-    params:
-      - conf/config.yaml:
-          - model
+      # Model settings live in the Hydra config group, not conf/config.yaml,
+      # so DVC watches those files directly.
+      - conf/model
     outs:
-      - models/kmeans.joblib
+      - models/model.joblib
+      - data/labels.csv
 
   evaluate:
     cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
     deps:
       - data/features.csv
       - data/target_dataset.csv
-      - models/kmeans.joblib
+      - data/labels.csv
+      - models/model.joblib
       - src/evaluate.py
+      - conf/model
     params:
       - conf/config.yaml:
           - evaluate
-          - model
           - mlflow
     outs:
       - data/segmented_customers.csv
