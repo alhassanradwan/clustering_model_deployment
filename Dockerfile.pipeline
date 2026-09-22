@@ -1,0 +1,50 @@
+# The training pipeline: DVC, MLflow, Hydra and the science stack.
+#
+# Unlike the API and dashboard images, this one holds no project code. DVC
+# tracks data versions through git, so it needs the actual repository - which
+# Compose mounts at /app when the container runs. This image supplies the
+# tools; your folder supplies the project.
+
+# ---------- Stage 1: builder ----------
+FROM python:3.12-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.3 /uv /usr/local/bin/uv
+
+WORKDIR /build
+
+# The environment is built at /opt/venv, deliberately outside /app: the project
+# folder gets mounted over /app at run time, and an environment living there
+# would be replaced by the host's Windows .venv, which cannot run on Linux.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
+
+# The full dependency list this time - the pipeline genuinely needs DVC,
+# MLflow and Hydra.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+
+
+# ---------- Stage 2: runtime ----------
+FROM python:3.12-slim
+
+# DVC reads version history from git, so git has to be present.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# A bind-mounted repository looks foreign to git, which refuses to read it
+# until the path is marked as trusted.
+RUN git config --global --add safe.directory /app
+
+WORKDIR /app
+
+# This container runs as root, unlike the API and dashboard. It writes results
+# back into your mounted folders, and on Windows bind mounts the ownership does
+# not line up with a container user. It is a batch job with no network port
+# exposed, so the trade-off is different from a service facing the internet.
+
+CMD ["dvc", "repro"]

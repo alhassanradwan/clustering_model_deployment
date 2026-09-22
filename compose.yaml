@@ -45,3 +45,26 @@ services:
         condition: service_healthy
 
     restart: unless-stopped
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.pipeline
+    image: hassangrdwan/rfm-pipeline:1.0.0
+
+    # Without a profile, this would start on every `docker compose up`. With
+    # one, it runs only when asked for by name.
+    profiles: ["pipeline"]
+
+    # The DagsHub token reaches the container at run time. It is never built
+    # into the image, so the image stays safe to publish.
+    env_file:
+      - .env
+
+    # The whole project, including .git and .dvc, which DVC needs to resolve
+    # data versions. Results are written straight back to your folders.
+    volumes:
+      - .:/app
+
+    # It runs once and exits, so restarting it would mean running it forever.
+    restart: "no"

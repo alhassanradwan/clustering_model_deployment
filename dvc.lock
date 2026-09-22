@@ -7,10 +7,12 @@ stages:
       hash: md5
       md5: 8f8e6d94ba88f976f4d8290cb2dea7fd
       size: 23715344
+      isexec: true
     - path: src/featurize.py
       hash: md5
-      md5: a72f0b9cad1089b118d32abe6af82e25
-      size: 5232
+      md5: 2a3af028e70e0733f17aa5826f24fda2
+      size: 5222
+      isexec: true
     params:
       conf/config.yaml:
         data:
@@ -40,15 +42,15 @@ stages:
     outs:
     - path: data/features.csv
       hash: md5
-      md5: 52d5d044d2e1eee16ac2c47ca2e2c232
-      size: 233694
+      md5: 3f3600340c21565489f6f8fa8adda785
+      size: 229760
     - path: data/target_dataset.csv
       hash: md5
-      md5: 9d734e712aaff984383c544e2e18eac2
-      size: 153262
+      md5: e7785c2e9ef6ed8191ac3d7e764ca6d9
+      size: 149359
     - path: models/scaler.joblib
       hash: md5
-      md5: 23821e01e3389929c3020ef3122b8fb5
+      md5: cb961ea5199bc39abb6c560b2bbde62b
       size: 927
   train:
     cmd: python src/train.py hydra.run.dir=outputs/dvc/train
@@ -60,20 +62,21 @@ stages:
       nfiles: 2
     - path: data/features.csv
       hash: md5
-      md5: 52d5d044d2e1eee16ac2c47ca2e2c232
-      size: 233694
+      md5: 3f3600340c21565489f6f8fa8adda785
+      size: 229760
     - path: src/train.py
       hash: md5
-      md5: 8e7873a2c5b59941d2f033f5b48f8d8a
-      size: 2122
+      md5: aed41883d744220d5adb74fed63ed69d
+      size: 2189
+      isexec: true
     outs:
     - path: data/labels.csv
       hash: md5
-      md5: d37f51c539395d9948e88456b70fdd40
-      size: 11715
+      md5: 93e63c629a02560dfb51444af0083bc6
+      size: 7812
     - path: models/model.joblib
       hash: md5
-      md5: 170992aff26411dd62e1d282613207ea
+      md5: 30589550480a2d6b464c000c4868b338
       size: 16751
   evaluate:
     cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
@@ -85,24 +88,25 @@ stages:
       nfiles: 2
     - path: data/features.csv
       hash: md5
-      md5: 52d5d044d2e1eee16ac2c47ca2e2c232
-      size: 233694
+      md5: 3f3600340c21565489f6f8fa8adda785
+      size: 229760
     - path: data/labels.csv
       hash: md5
-      md5: d37f51c539395d9948e88456b70fdd40
-      size: 11715
+      md5: 93e63c629a02560dfb51444af0083bc6
+      size: 7812
     - path: data/target_dataset.csv
       hash: md5
-      md5: 9d734e712aaff984383c544e2e18eac2
-      size: 153262
+      md5: e7785c2e9ef6ed8191ac3d7e764ca6d9
+      size: 149359
     - path: models/model.joblib
       hash: md5
-      md5: 170992aff26411dd62e1d282613207ea
+      md5: 30589550480a2d6b464c000c4868b338
       size: 16751
     - path: src/evaluate.py
       hash: md5
-      md5: c275856dde2fbfab2edd5030f24ec0a0
-      size: 7809
+      md5: fbfa6128753e718db4b119eb174d2d8c
+      size: 7943
+      isexec: true
     params:
       conf/config.yaml:
         evaluate:
@@ -114,13 +118,13 @@ stages:
     outs:
     - path: data/segmented_customers.csv
       hash: md5
-      md5: cb68574b2a14a3036574bf63951f28be
-      size: 161074
+      md5: 5cddfb409c0ac6988deb3447fcf1a785
+      size: 157171
     - path: metrics.json
       hash: md5
-      md5: e934ea06342c81b1bb0dd897953485fd
-      size: 334
+      md5: 08fffb09a981611f3c092d101bd097ed
+      size: 325
     - path: reports/cluster_profile.csv
       hash: md5
-      md5: f9c8c6356e43822ab0c473a2cf21660d
-      size: 288
+      md5: 5955cbf4a8d50cee0153a91781b4ff42
+      size: 282
