@@ -33,6 +33,11 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/segments")
+def segments() -> list[dict[str, object]]:
+    return segmenter.segments()
+
+
 @app.post("/predict", response_model=Segment)
 def predict(customer: Customer) -> Segment:
     cluster, segment = segmenter.predict(customer.recency, customer.frequency, customer.monetary)

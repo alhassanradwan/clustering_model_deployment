@@ -6,6 +6,7 @@ was trained on: log1p, then the saved scaler, then predict.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import joblib
@@ -48,7 +49,15 @@ class Segmenter:
     def __init__(self, root: Path = ROOT) -> None:
         self.model = joblib.load(root / "models" / "model.joblib")
         self.scaler = joblib.load(root / "models" / "scaler.joblib")
-        self.names = name_clusters(pd.read_csv(root / "reports" / "cluster_profile.csv"))
+        self.profile = pd.read_csv(root / "reports" / "cluster_profile.csv")
+        self.names = name_clusters(self.profile)
+
+    def segments(self) -> list[dict[str, object]]:
+        """Each segment's name alongside its average behaviour."""
+        table = self.profile.assign(segment=self.profile["Cluster"].map(self.names))
+        # Round-trip through JSON so NumPy numbers become plain Python ones,
+        # which the web framework can serialise.
+        return json.loads(table.to_json(orient="records"))
 
     def predict(self, recency: float, frequency: float, monetary: float) -> tuple[int, str]:
         row = pd.DataFrame([[recency, frequency, monetary]], columns=COLUMNS)

@@ -1,0 +1,47 @@
+# The project name. Without it, Compose would derive one from the folder name
+# "DVC EXPERIMENT", and every container would be named after that.
+name: rfm
+
+services:
+  api:
+    # Build from the Dockerfile in this folder, and tag the result with this
+    # name - the same image you pushed to Docker Hub.
+    build: .
+    image: hassangrdwan/rfm-api:1.1.0
+
+    # -p 8000:8000
+    ports:
+      - "8000:8000"
+
+    # If the container crashes, Docker starts it again. It stays stopped only
+    # when you stop it yourself.
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    image: hassangrdwan/rfm-dashboard:1.0.0
+
+    ports:
+      - "8501:8501"
+
+    # Settings passed in at start-up. "api" is the other service's name: on
+    # the network Compose creates, every service is reachable by its name.
+    environment:
+      API_URL: http://api:8000
+      DATA_PATH: /app/data/segmented_customers.csv
+
+    # Your local ./data folder appears inside the container at /app/data.
+    # Nothing is copied into the image, so customer-level data never ends up
+    # in anything you push. :ro makes it read-only for the container.
+    volumes:
+      - ./data:/app/data:ro
+
+    # Start only once the API's health check passes, not merely once its
+    # container exists - otherwise the first page load would fail.
+    depends_on:
+      api:
+        condition: service_healthy
+
+    restart: unless-stopped
