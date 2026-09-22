@@ -1,0 +1,19 @@
+# Secrets must never go into an image: anyone with the image can read them.
+.env
+
+# Rebuilt inside the container, and Windows-specific anyway.
+.venv
+
+# Not needed to serve predictions, and large.
+Online Retail.xlsx
+data/
+.dvc/cache/
+.dvc/tmp/
+.git/
+outputs/
+multirun/
+mlruns/
+mlflow.db
+preprocessing.ipynb
+__pycache__/
+*.pyc

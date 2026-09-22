@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "dvc[s3]",
+    "fastapi>=0.141.1",
     "hydra-core",
     "joblib",
     "matplotlib>=3.11.1",
@@ -14,4 +15,18 @@ dependencies = [
     "pandas>=3.0.5",
     "python-dotenv",
     "scikit-learn>=1.9.0",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[dependency-groups]
+# Only what the API imports. The Docker image installs this group alone, so it
+# carries none of the training tooling (DVC, MLflow, Hydra). `uv sync` locally
+# still installs everything above. Both resolve through the same uv.lock, so
+# scikit-learn here is the exact version the model was trained with.
+serve = [
+    "fastapi>=0.141.1",
+    "joblib",
+    "pandas>=3.0.5",
+    "scikit-learn>=1.9.0",
+    "uvicorn[standard]>=0.52.4",
 ]
