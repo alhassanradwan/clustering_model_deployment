@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import sys
+from typing import Any, cast
 
 import hydra
 import joblib
@@ -40,8 +41,9 @@ log = logging.getLogger(__name__)
 # cp1252, which cannot encode them, and the resulting UnicodeEncodeError kills
 # the stage after the run has already been logged.
 for stream in (sys.stdout, sys.stderr):
-    if hasattr(stream, "reconfigure"):
-        stream.reconfigure(encoding="utf-8", errors="replace")
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8", errors="replace")
 
 # Credentials and the tracking URI live in .env, which is gitignored.
 load_dotenv()
@@ -72,7 +74,8 @@ def _run_name(cfg: DictConfig) -> str:
 
 
 def score(cfg: DictConfig, X: pd.DataFrame, labels: np.ndarray, model) -> dict:
-    metrics = {"n_clusters_found": len(set(labels) - {-1})}
+    # Declared as float so the scores assigned below keep their decimals.
+    metrics: dict[str, float] = {"n_clusters_found": len(set(labels) - {-1})}
 
     # DBSCAN labels outliers -1. That is not a cluster, so including those
     # points would make every separation metric meaningless. Score the
@@ -88,7 +91,8 @@ def score(cfg: DictConfig, X: pd.DataFrame, labels: np.ndarray, model) -> dict:
     metrics["silhouette"] = float(silhouette_score(Xc, lc))
     metrics["davies_bouldin"] = float(davies_bouldin_score(Xc, lc))
     metrics["calinski_harabasz"] = float(calinski_harabasz_score(Xc, lc))
-    metrics["misfit_rate"] = float((silhouette_samples(Xc, lc) < 0).mean())
+    per_point = np.asarray(silhouette_samples(Xc, lc), dtype=float)
+    metrics["misfit_rate"] = float((per_point < 0).mean())
 
     # Inertia only exists for centroid-based models.
     if hasattr(model, "inertia_"):
@@ -185,7 +189,10 @@ def main(cfg: DictConfig) -> None:
         mlflow.set_tracking_uri(uri)
         mlflow.set_experiment(cfg.mlflow.experiment_name)
         with mlflow.start_run(run_name=_run_name(cfg)):
-            params = OmegaConf.to_container(cfg.model, resolve=True)
+            params = cast(
+                dict[str, Any],
+                OmegaConf.to_container(cfg.model, resolve=True),
+            )
             params.update({
                 "log_transform": cfg.features.log_transform,
                 "scaler": cfg.features.scaler,

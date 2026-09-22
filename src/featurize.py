@@ -100,7 +100,7 @@ def build_features(cfg: DictConfig, target: pd.DataFrame):
     frame = target[cols]
 
     if cfg.features.log_transform:
-        frame = np.log1p(frame)
+        frame = pd.DataFrame(np.log1p(frame), columns=cols, index=frame.index)
         log.info("skew after log1p: %s", frame.skew().round(2).to_dict())
 
     name = str(cfg.features.scaler).lower()
