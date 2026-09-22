@@ -9,8 +9,8 @@ stages:
       size: 23715344
     - path: src/featurize.py
       hash: md5
-      md5: 55af7865d535349fe9a59d7b0b5c77b7
-      size: 4521
+      md5: 4421d062d32f8c1c3d51ee0df8052298
+      size: 5034
     params:
       conf/config.yaml:
         data:
@@ -32,6 +32,7 @@ stages:
           target: data/target_dataset.csv
           features: data/features.csv
           model: models/model.joblib
+          scaler: models/scaler.joblib
           labels: data/labels.csv
           metrics: metrics.json
           profile: reports/cluster_profile.csv
@@ -45,6 +46,10 @@ stages:
       hash: md5
       md5: 9d734e712aaff984383c544e2e18eac2
       size: 153262
+    - path: models/scaler.joblib
+      hash: md5
+      md5: 23821e01e3389929c3020ef3122b8fb5
+      size: 927
   train:
     cmd: python src/train.py hydra.run.dir=outputs/dvc/train
     deps:
