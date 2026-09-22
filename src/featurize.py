@@ -17,6 +17,7 @@ import logging
 import os
 
 import hydra
+import joblib
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
@@ -85,8 +86,14 @@ def build_target(cfg: DictConfig, df: pd.DataFrame) -> pd.DataFrame:
     ]]
 
 
-def build_features(cfg: DictConfig, target: pd.DataFrame) -> pd.DataFrame:
-    """Log-transform and scale the RFM columns into the K-Means input matrix."""
+def build_features(cfg: DictConfig, target: pd.DataFrame):
+    """Log-transform and scale the RFM columns into the K-Means input matrix.
+
+    Returns (features, scaler). The fitted scaler is handed back so it can be
+    saved: scoring a new customer has to reuse the training set's mean and
+    standard deviation. Refitting on incoming rows would make every value zero,
+    and every customer would land in the same cluster.
+    """
     from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
     cols = list(cfg.features.columns)
@@ -98,13 +105,15 @@ def build_features(cfg: DictConfig, target: pd.DataFrame) -> pd.DataFrame:
 
     name = str(cfg.features.scaler).lower()
     if name in ("none", "null", ""):
-        return frame
+        return frame, None
 
     scalers = {"standard": StandardScaler, "robust": RobustScaler, "minmax": MinMaxScaler}
     if name not in scalers:
         raise ValueError(f"unknown scaler {name!r}; expected one of {list(scalers)} or 'none'")
 
-    return pd.DataFrame(scalers[name]().fit_transform(frame), columns=cols)
+    scaler = scalers[name]()
+    scaled = pd.DataFrame(scaler.fit_transform(frame), columns=cols)
+    return scaled, scaler
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
@@ -113,15 +122,19 @@ def main(cfg: DictConfig) -> None:
 
     df = load(cfg, root)
     target = build_target(cfg, df)
-    features = build_features(cfg, target)
+    features, scaler = build_features(cfg, target)
     log.info("customers: %d | features: %s", len(target), tuple(features.shape))
 
-    for rel in (cfg.paths.target, cfg.paths.features):
+    for rel in (cfg.paths.target, cfg.paths.features, cfg.paths.scaler):
         os.makedirs(os.path.dirname(os.path.join(root, rel)) or ".", exist_ok=True)
 
     target.to_csv(os.path.join(root, cfg.paths.target), index=False)
     features.to_csv(os.path.join(root, cfg.paths.features), index=False)
     log.info("wrote %s and %s", cfg.paths.target, cfg.paths.features)
+
+    if scaler is not None:
+        joblib.dump(scaler, os.path.join(root, cfg.paths.scaler))
+        log.info("wrote %s", cfg.paths.scaler)
 
 
 if __name__ == "__main__":

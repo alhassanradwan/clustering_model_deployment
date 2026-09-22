@@ -1,4 +1,11 @@
 {
-  "n_clusters_found": 1,
-  "noise_rate": 0.0023065094823167607
+  "n_clusters_found": 5,
+  "noise_rate": 0.0,
+  "silhouette": 0.3217526175982116,
+  "davies_bouldin": 0.9868777188284066,
+  "calinski_harabasz": 3002.159715597957,
+  "misfit_rate": 0.013326499231163505,
+  "inertia": 2868.059328668131,
+  "stability_ari_mean": 0.9303043823296177,
+  "stability_ari_min": 0.9039821993555517
 }

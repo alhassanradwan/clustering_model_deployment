@@ -15,6 +15,9 @@ paths:
   target: data/target_dataset.csv
   features: data/features.csv
   model: models/model.joblib
+  # The fitted scaler is saved so serving can reuse the training set's mean and
+  # standard deviation. Refitting on incoming rows would collapse them to zero.
+  scaler: models/scaler.joblib
   labels: data/labels.csv
   # metrics.json stays at the root and out of the DVC cache so `dvc metrics
   # show` finds it and git can diff it across commits.

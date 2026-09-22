@@ -12,6 +12,7 @@ stages:
     outs:
       - data/target_dataset.csv
       - data/features.csv
+      - models/scaler.joblib
 
   train:
     cmd: python src/train.py hydra.run.dir=outputs/dvc/train
