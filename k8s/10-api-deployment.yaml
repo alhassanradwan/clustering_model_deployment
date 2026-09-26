@@ -1,0 +1,71 @@
+# A Deployment says "keep this many pods of this image running".
+# It is the Kubernetes equivalent of a Swarm service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rfm
+spec:
+  replicas: 3
+
+  # Which pods this Deployment is responsible for. Kubernetes connects objects
+  # by labels, not by name: anything carrying app=api belongs to this one.
+  selector:
+    matchLabels:
+      app: api
+
+  # The recipe for each pod. Every pod created from it carries the label
+  # above, which is how the selector finds them.
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: hassangrdwan/rfm-api:1.2.0
+          ports:
+            - containerPort: 8000
+
+          # Kubernetes ignores the HEALTHCHECK baked into the image and uses
+          # its own probes, which answer three separate questions.
+
+          # Has it finished starting? Loading the model takes a few seconds.
+          # While this runs, the other two probes are suspended, so a slow
+          # start is never mistaken for a failure. Allows up to 30 seconds.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 2
+            failureThreshold: 15
+
+          # Is it ready for traffic? A pod failing this stays running but is
+          # removed from the Service, so requests go only to healthy pods.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+
+          # Is it still alive? Three failures in a row and Kubernetes restarts
+          # the container. This is the one that rescues a process that is up
+          # but wedged.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Measured at 130 MiB idle, so 192 Mi requested with room to grow.
+          # requests = what the scheduler reserves; limits = the hard ceiling.
+          # Exceeding the memory limit gets the container killed (exit 137);
+          # exceeding the CPU limit only slows it down.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

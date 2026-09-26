@@ -1,0 +1,26 @@
+# A Service is a stable address in front of a changing set of pods. Pods come
+# and go with their own IPs; the Service keeps one name and one address, and
+# load-balances across whichever pods currently match its selector.
+#
+# In Swarm, a service both ran the copies and published the address. Kubernetes
+# splits those jobs: the Deployment runs pods, the Service addresses them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: rfm
+spec:
+  # NodePort opens a port on the node itself, so a browser outside the cluster
+  # can reach it. 30080 rather than 8000 because the Swarm stack still holds
+  # 8000 on this machine.
+  type: NodePort
+
+  # The same label the Deployment stamps on its pods. This is the entire link
+  # between the two objects.
+  selector:
+    app: api
+
+  ports:
+    - port: 8000        # the Service's own port, used inside the cluster
+      targetPort: 8000  # the port on the pod
+      nodePort: 30080   # the port on your machine

@@ -1,0 +1,67 @@
+# Docker Swarm stack.
+#
+#   docker stack deploy -c stack.yaml rfm
+#
+# The difference from compose.yaml is the `deploy:` block, which Compose
+# ignores and Swarm acts on. There is no `build:` here: Swarm pulls images by
+# name, because in a real cluster the machine running a container is not the
+# one that built it.
+
+services:
+  api:
+    image: hassangrdwan/rfm-api:1.2.0
+
+    # Published on every node in the swarm. A request to port 8000 on any node
+    # is routed to any healthy replica, wherever it happens to be running.
+    ports:
+      - "8000:8000"
+
+    deploy:
+      # Three copies. Swarm keeps exactly this many running.
+      replicas: 3
+
+      restart_policy:
+        condition: any
+        delay: 5s
+
+      # How a new version rolls out: one replica at a time, ten seconds apart,
+      # and the replacement starts before the old one stops, so the service
+      # never drops below three. If a new replica fails to become healthy, the
+      # rollout reverses itself.
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+
+      # A ceiling on what one replica may consume, so a runaway container
+      # cannot starve everything else on the machine.
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
+  dashboard:
+    image: hassangrdwan/rfm-dashboard:1.0.0
+
+    ports:
+      - "8501:8501"
+
+    environment:
+      API_URL: http://api:8000
+      DATA_PATH: /app/data/segmented_customers.csv
+
+    # Deliberately no volume here. A bind mount ties a service to one specific
+    # machine's folders, which is exactly what an orchestrator is meant to make
+    # unnecessary. The scatter plot will report its data missing; everything
+    # served by the API still works. Kubernetes solves this properly with a
+    # persistent volume.
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1G

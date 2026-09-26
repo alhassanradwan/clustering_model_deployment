@@ -1,0 +1,13 @@
+# A ConfigMap holds non-secret settings, kept out of the image so the same
+# image runs in any environment. In Compose these were the `environment:`
+# lines; here they are their own object, and several pods can share it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-config
+  namespace: rfm
+data:
+  # "api" is the Service name. Kubernetes DNS resolves it inside the
+  # namespace, exactly as Compose resolved service names on its network.
+  API_URL: "http://api:8000"
+  DATA_PATH: "/app/data/segmented_customers.csv"

@@ -1,0 +1,19 @@
+# Storage that outlives pods.
+#
+# In Compose the customer data came from a bind mount of ./data. That ties a
+# service to one machine's folders, which an orchestrator is meant to avoid.
+# A PersistentVolumeClaim instead asks the cluster for storage; the cluster
+# provides it and the pod mounts it, without either knowing where it lives.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: customer-data
+  namespace: rfm
+spec:
+  accessModes:
+    # One node may mount it read-write at a time. Enough here; shared storage
+    # across nodes needs ReadWriteMany and a different storage backend.
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi

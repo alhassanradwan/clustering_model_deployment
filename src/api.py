@@ -5,12 +5,18 @@
 
 from __future__ import annotations
 
+import os
+import socket
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from serving import Segmenter
 
-app = FastAPI(title="RFM Segmentation API")
+# Set at image build time, so the running code can report which version it is.
+VERSION = os.getenv("APP_VERSION", "dev")
+
+app = FastAPI(title="RFM Segmentation API", version=VERSION)
 
 # Loaded once at startup, not per request: reading the model from disk on every
 # call would dominate response time.
@@ -30,7 +36,9 @@ class Segment(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    # The container's hostname is its ID, so this identifies which replica
+    # answered - useful for watching load balancing and rolling updates.
+    return {"status": "ok", "version": VERSION, "replica": socket.gethostname()}
 
 
 @app.get("/segments")

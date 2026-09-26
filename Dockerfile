@@ -33,6 +33,11 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Passed in with --build-arg so the version lives in one place: the build
+# command. Defaults to "dev" for local builds.
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 # The code and the model artifacts the API loads at startup.
 COPY src/ src/
 COPY models/ models/

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: rfm
+spec:
+  # One replica: Streamlit keeps per-browser session state in memory, so
+  # spreading users across copies would give them inconsistent pages.
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: dashboard
+
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: hassangrdwan/rfm-dashboard:1.0.0
+          ports:
+            - containerPort: 8501
+
+          # Every key in the ConfigMap becomes an environment variable.
+          envFrom:
+            - configMapRef:
+                name: dashboard-config
+
+          volumeMounts:
+            - name: customer-data
+              mountPath: /app/data
+
+          # Streamlit serves its own health endpoint.
+          startupProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            periodSeconds: 2
+            failureThreshold: 20
+
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            periodSeconds: 10
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+
+      volumes:
+        - name: customer-data
+          persistentVolumeClaim:
+            claimName: customer-data

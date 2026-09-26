@@ -1,0 +1,6 @@
+# A namespace groups related objects and keeps them out of everyone else's
+# way. The cluster's own components live in `kube-system`; yours live here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rfm

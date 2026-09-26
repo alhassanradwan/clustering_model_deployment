@@ -1,0 +1,92 @@
+# The retraining pipeline, on a schedule.
+#
+# A CronJob creates a Job on a timetable; a Job runs pods until they succeed.
+# This is the Kubernetes answer to something Swarm has no equivalent for.
+#
+# The pod is self-contained: it clones the repository, pulls the data from DVC
+# storage, reruns the pipeline and logs the run to MLflow. Nothing is mounted
+# from your machine, so this would work identically on a real cluster.
+#
+# The Secret it reads is NOT defined here. Secrets are only base64-encoded, so
+# committing one would be the same as committing the token. It is created with
+# `kubectl create secret` instead - see the runbook.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retrain
+  namespace: rfm
+spec:
+  # 03:00 every Sunday. Trigger it by hand with:
+  #   kubectl create job --from=cronjob/retrain manual-1 -n rfm
+  schedule: "0 3 * * 0"
+
+  # Keep the last few runs so their logs can be read; without this they
+  # accumulate forever.
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  # If a run is somehow still going when the next is due, skip rather than
+  # start a second one on the same data.
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    spec:
+      # Give up after two failed attempts rather than retrying forever.
+      backoffLimit: 2
+
+      # A ceiling on how long one run may take.
+      activeDeadlineSeconds: 1800
+
+      template:
+        spec:
+          # Jobs are expected to finish. Without this, Kubernetes would treat
+          # the exit as a crash and restart the pod endlessly.
+          restartPolicy: Never
+
+          containers:
+            - name: pipeline
+              image: hassangrdwan/rfm-pipeline:1.0.0
+
+              env:
+                # DVC talks to DagsHub over the S3 protocol, and reads these
+                # standard variable names for credentials.
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: dagshub
+                      key: token
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: dagshub
+                      key: token
+                - name: MLFLOW_TRACKING_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: dagshub
+                      key: token
+                - name: MLFLOW_TRACKING_USERNAME
+                  value: alhassanradwan
+                - name: MLFLOW_TRACKING_URI
+                  value: https://dagshub.com/alhassanradwan/clustering_model_deployment.mlflow
+
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  git clone --depth 1 https://github.com/alhassanradwan/clustering_model_deployment.git /tmp/repo
+                  cd /tmp/repo
+                  # Only the raw input. Everything else DVC tracks is an output
+                  # this job is about to regenerate, and pulling those would
+                  # make the run depend on someone having pushed them.
+                  dvc pull "Online Retail.xlsx.dvc"
+                  dvc repro
+                  cat metrics.json
+
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  cpu: "2"
+                  memory: 3Gi
