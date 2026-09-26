@@ -1,0 +1,38 @@
+# Horizontal Pod Autoscaler: change the replica count automatically based on
+# load, instead of you running `kubectl scale`.
+#
+# It needs metrics-server running, and it needs the Deployment to declare CPU
+# requests - the target below is a percentage of the request, not of a core.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  namespace: rfm
+spec:
+  # Which object to resize.
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+
+  minReplicas: 2
+  maxReplicas: 10
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          # 50% of the 100m CPU request, so 50m average per pod. Above that,
+          # add replicas; below it, remove them.
+          averageUtilization: 50
+
+  behavior:
+    scaleUp:
+      # React quickly to a rise in load.
+      stabilizationWindowSeconds: 30
+    scaleDown:
+      # But shrink slowly. Traffic is spiky, and removing pods the moment it
+      # dips leads to constant flapping.
+      stabilizationWindowSeconds: 120

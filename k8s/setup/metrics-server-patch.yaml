@@ -1,0 +1,28 @@
+# Patch for metrics-server on Docker Desktop.
+#
+# metrics-server scrapes each node's kubelet over HTTPS and verifies its
+# certificate. Docker Desktop's kubelet uses a self-signed certificate that no
+# cluster authority signed, so verification fails and every pod reports no
+# metrics. --kubelet-insecure-tls skips that check.
+#
+# Acceptable on a local single-node cluster. On a real cluster you would fix
+# the certificates instead, because skipping verification means metrics-server
+# will trust whatever answers on that port.
+#
+#   kubectl patch deployment metrics-server -n kube-system \
+#       --patch-file k8s/setup/metrics-server-patch.yaml
+#
+# The other arguments are metrics-server's defaults, repeated because patching
+# a container's args replaces the whole list.
+spec:
+  template:
+    spec:
+      containers:
+        - name: metrics-server
+          args:
+            - --cert-dir=/tmp
+            - --secure-port=10250
+            - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+            - --kubelet-use-node-status-port
+            - --metric-resolution=15s
+            - --kubelet-insecure-tls
