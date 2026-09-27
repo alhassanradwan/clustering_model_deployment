@@ -1,0 +1,90 @@
+# Runs on every push and pull request.
+#
+# Two jobs: the tests run first, and the images are only built if they pass.
+# Nothing is published here - that is release.yml, which runs on a version tag.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # --frozen installs exactly what uv.lock says and fails if the lock file
+      # is out of date, rather than quietly resolving something different from
+      # what was tested locally.
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Check everything compiles
+        run: uv run python -m compileall -q src tests
+
+      - name: Run tests
+        run: uv run pytest -v
+
+  build:
+    name: Build images
+    runs-on: ubuntu-latest
+    # Only if the tests passed. No point building a broken commit.
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # git holds only the hashes of these files; the contents live in DVC
+      # storage. Without this step the API image has no model to copy in.
+      # Only the three files the image needs, not the 24 MB spreadsheet.
+      - name: Fetch the model from DVC storage
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc pull models/model.joblib models/scaler.joblib reports/cluster_profile.csv
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # push: false - this proves the Dockerfile still builds. Publishing is
+      # release.yml's job.
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: rfm-api:ci
+          build-args: APP_VERSION=ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build the dashboard image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.dashboard
+          push: false
+          tags: rfm-dashboard:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
