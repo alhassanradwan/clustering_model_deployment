@@ -1,5 +1,8 @@
 # RFM Customer Segmentation
 
+[![CI](https://github.com/alhassanradwan/clustering_model_deployment/actions/workflows/ci.yml/badge.svg)](https://github.com/alhassanradwan/clustering_model_deployment/actions/workflows/ci.yml)
+[![Docker](https://img.shields.io/docker/v/hassangrdwan/rfm-api?label=rfm-api&sort=semver)](https://hub.docker.com/r/hassangrdwan/rfm-api)
+
 K-Means segmentation of an online retailer's customers using the Recency,
 Frequency and Monetary model, reproducing Chen et al. (2012), *Data mining for
 the online retail industry* (Journal of Database Marketing & Customer Strategy

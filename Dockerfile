@@ -56,4 +56,12 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # 0.0.0.0, not 127.0.0.1: inside a container, 127.0.0.1 means "only the
 # container itself", so nothing outside could reach the API.
-CMD ["uvicorn", "api:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
+#
+# Run through a shell so ${PORT} is expanded. Hosting platforms choose the
+# port and pass it in this variable; locally there is none, so it falls back
+# to 8000 and nothing about Compose, Swarm or Kubernetes changes.
+#
+# `exec` replaces the shell with uvicorn, so uvicorn stays process 1 and
+# receives the stop signal directly. Without it the shell would hold PID 1,
+# swallow the signal, and every shutdown would wait for a 10-second timeout.
+CMD ["sh", "-c", "exec uvicorn api:app --app-dir src --host 0.0.0.0 --port ${PORT:-8000}"]
