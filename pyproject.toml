@@ -37,3 +37,13 @@ dashboard = [
     "requests",
     "streamlit",
 ]
+# Installed by `uv sync` locally and in CI, but in none of the images.
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+# The code lives in src/ without being an installed package, so pytest is told
+# where to find it rather than every test file adjusting sys.path.
+pythonpath = ["src"]
+testpaths = ["tests"]
