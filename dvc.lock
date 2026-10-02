@@ -57,8 +57,8 @@ stages:
     deps:
     - path: conf/model
       hash: md5
-      md5: a1868ab919b704c61ba2ec9ee5dcefd3.dir
-      size: 289
+      md5: ebd76da53c533d1ad19ed240c00b097e.dir
+      size: 293
       nfiles: 2
     - path: data/features.csv
       hash: md5
@@ -68,23 +68,22 @@ stages:
       hash: md5
       md5: aed41883d744220d5adb74fed63ed69d
       size: 2189
-      isexec: true
     outs:
     - path: data/labels.csv
       hash: md5
-      md5: 93e63c629a02560dfb51444af0083bc6
-      size: 7812
+      md5: d37f51c539395d9948e88456b70fdd40
+      size: 11715
     - path: models/model.joblib
       hash: md5
-      md5: 30589550480a2d6b464c000c4868b338
+      md5: e62143510828c5d7f03fb40c85c33040
       size: 16751
   evaluate:
     cmd: python src/evaluate.py hydra.run.dir=outputs/dvc/evaluate
     deps:
     - path: conf/model
       hash: md5
-      md5: a1868ab919b704c61ba2ec9ee5dcefd3.dir
-      size: 289
+      md5: ebd76da53c533d1ad19ed240c00b097e.dir
+      size: 293
       nfiles: 2
     - path: data/features.csv
       hash: md5
@@ -92,21 +91,20 @@ stages:
       size: 229760
     - path: data/labels.csv
       hash: md5
-      md5: 93e63c629a02560dfb51444af0083bc6
-      size: 7812
+      md5: d37f51c539395d9948e88456b70fdd40
+      size: 11715
     - path: data/target_dataset.csv
       hash: md5
       md5: e7785c2e9ef6ed8191ac3d7e764ca6d9
       size: 149359
     - path: models/model.joblib
       hash: md5
-      md5: 30589550480a2d6b464c000c4868b338
+      md5: e62143510828c5d7f03fb40c85c33040
       size: 16751
     - path: src/evaluate.py
       hash: md5
       md5: fbfa6128753e718db4b119eb174d2d8c
       size: 7943
-      isexec: true
     params:
       conf/config.yaml:
         evaluate:
@@ -118,13 +116,13 @@ stages:
     outs:
     - path: data/segmented_customers.csv
       hash: md5
-      md5: 5cddfb409c0ac6988deb3447fcf1a785
-      size: 157171
+      md5: cb68574b2a14a3036574bf63951f28be
+      size: 161074
     - path: metrics.json
       hash: md5
-      md5: 08fffb09a981611f3c092d101bd097ed
-      size: 325
+      md5: c0ae456dc49b13580a883a748a550c52
+      size: 334
     - path: reports/cluster_profile.csv
       hash: md5
-      md5: 5955cbf4a8d50cee0153a91781b4ff42
-      size: 282
+      md5: f9c8c6356e43822ab0c473a2cf21660d
+      size: 288
