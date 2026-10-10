@@ -21,7 +21,7 @@ jobs:
     name: Tests
 
     # GitHub creates a temporary Ubuntu machine to run these steps
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       # Download your repository code onto that machine
@@ -53,7 +53,7 @@ jobs:
   # separate means Job 1 stays fast and works without credentials.
   integration:
     name: Model tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     # No point fetching a model if the code does not even compile
     needs: test
@@ -88,7 +88,7 @@ jobs:
   # JOB 3: Build the Docker images
   build:
     name: Build images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     # Waits for both test jobs: an image is never built from a model whose own
     # tests have not passed.

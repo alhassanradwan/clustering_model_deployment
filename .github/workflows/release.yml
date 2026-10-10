@@ -15,7 +15,7 @@ on:
 jobs:
   test:
     name: Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
 
   publish:
     name: Build and publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # A failing test must not reach Docker Hub.
     needs: test
 
