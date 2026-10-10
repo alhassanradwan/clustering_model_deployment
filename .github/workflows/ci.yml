@@ -1,45 +1,61 @@
-# Runs on every push and pull request.
-#
-# Two jobs: the tests run first, and the images are only built if they pass.
-# Nothing is published here - that is release.yml, which runs on a version tag.
 
+# Name shown in GitHub Actions
 name: CI
 
+# When should this workflow run?
 on:
+  # Whenever you push code to the main branch
   push:
     branches: [main]
+
+  # Whenever someone creates or updates a pull request targeting main
   pull_request:
     branches: [main]
 
 jobs:
+  # JOB 1: Test the code that needs nothing but the repository
+  #
+  # No model, no credentials, no network. Anyone who clones the repo can run
+  # the same command and get the same result in seconds.
   test:
     name: Tests
+
+    # GitHub creates a temporary Ubuntu machine to run these steps
     runs-on: ubuntu-latest
 
     steps:
+      # Download your repository code onto that machine
       - uses: actions/checkout@v4
 
+      # Install uv, the Python package manager used in your project
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
+          # Cache packages to make future workflow runs faster
           enable-cache: true
 
-      # --frozen installs exactly what uv.lock says and fails if the lock file
-      # is out of date, rather than quietly resolving something different from
-      # what was tested locally.
+      # Install the project's dependencies using the locked versions
       - name: Install dependencies
         run: uv sync --frozen
 
+      # Check whether Python files contain compilation/syntax errors
       - name: Check everything compiles
         run: uv run python -m compileall -q src tests
 
+      # Everything except the tests that load models/model.joblib, which is
+      # tracked by DVC rather than git and so is not in a fresh checkout.
       - name: Run tests
-        run: uv run pytest -v
+        run: uv run pytest -v -m "not needs_model"
 
-  build:
-    name: Build images
+  # JOB 2: Test the trained model itself
+  #
+  # Split out because it needs the DagsHub token to fetch the model. Keeping it
+  # separate means Job 1 stays fast and works without credentials.
+  integration:
+    name: Model tests
     runs-on: ubuntu-latest
-    # Only if the tests passed. No point building a broken commit.
+
+    # No point fetching a model if the code does not even compile
     needs: test
 
     steps:
@@ -53,38 +69,121 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      # git holds only the hashes of these files; the contents live in DVC
-      # storage. Without this step the API image has no model to copy in.
-      # Only the three files the image needs, not the 24 MB spreadsheet.
+      # The model is in DVC storage, not git, so it has to be downloaded before
+      # anything can load it.
       - name: Fetch the model from DVC storage
         env:
+          # DVC talks to DagsHub over the S3 protocol and reads these standard
+          # variable names for credentials.
           AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
           uv run dvc pull models/model.joblib models/scaler.joblib reports/cluster_profile.csv
 
+      # Loads the real model and scaler, scores customers through the API, and
+      # checks the input validation rejects nonsense.
+      - name: Run the model and API tests
+        run: uv run pytest -v -m "needs_model"
+
+  # JOB 3: Build the Docker images
+  build:
+    name: Build images
+    runs-on: ubuntu-latest
+
+    # Waits for both test jobs: an image is never built from a model whose own
+    # tests have not passed.
+    needs: [test, integration]
+
+    steps:
+      # Download the repository code onto this new temporary machine
+      - uses: actions/checkout@v4
+
+      # Install uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Install the Python dependencies
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Download the required model files from DVC remote storage
+      - name: Fetch the model from DVC storage
+        env:
+          # Provide the DagsHub token as the storage access key
+          AWS_ACCESS_KEY_ID: ${{ secrets.DAGSHUB_TOKEN }}
+          # Provide the token as the storage secret key
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          uv run dvc pull models/model.joblib models/scaler.joblib reports/cluster_profile.csv
+
+      # Prepare Docker Buildx, the tool used to build the images
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # push: false - this proves the Dockerfile still builds. Publishing is
-      # release.yml's job.
+      # Build the API image without uploading it to Docker Hub
       - name: Build the API image
         uses: docker/build-push-action@v6
         with:
+          # Use the repository root as the build context
           context: .
+          # Read the API instructions from this Dockerfile
           file: Dockerfile
+          # Do not push/upload the image
           push: false
+          # Keep the built image on this machine so the next step can run it.
+          # Without this, buildx leaves the result in its cache and `docker run`
+          # would report "image not found".
+          load: true
+          # Give this temporary image the tag rfm-api:ci
           tags: rfm-api:ci
+          # Pass a version value into the Dockerfile's APP_VERSION argument
           build-args: APP_VERSION=ci-${{ github.sha }}
+          # Reuse previous build cache to save time
           cache-from: type=gha
+          # Save build cache for future workflow runs
           cache-to: type=gha,mode=max
 
+      # Prove the image actually starts. A build can succeed and still produce
+      # an image that dies on launch - a bad CMD, a missing file, a wrong path.
+      # Nothing else in this workflow would catch that.
+      - name: Smoke test the API image
+        run: |
+          docker run -d --name smoke -p 8000:8000 rfm-api:ci
+
+          # Poll rather than sleep a fixed time: the model load takes a few
+          # seconds and a fixed wait is either too short or wasteful.
+          for attempt in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          echo "Response from the running container:"
+          curl -sf http://localhost:8000/health | tee response.json
+          echo
+
+          # The version is passed in at build time, so finding it here proves
+          # the --build-arg reached the running process.
+          grep -q "ci-${{ github.sha }}" response.json
+
+          docker rm -f smoke
+
+      # Build the dashboard image without uploading it
       - name: Build the dashboard image
         uses: docker/build-push-action@v6
         with:
+          # Use the repository root as the build context
           context: .
+          # Read the dashboard instructions from this Dockerfile
           file: Dockerfile.dashboard
+          # Do not push/upload the image
           push: false
+          # Give this temporary image the tag rfm-dashboard:ci
           tags: rfm-dashboard:ci
+          # Reuse the previous Docker build cache
           cache-from: type=gha
+          # Save the build cache for future runs
           cache-to: type=gha,mode=max

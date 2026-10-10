@@ -39,6 +39,7 @@ dashboard = [
 ]
 # Installed by `uv sync` locally and in CI, but in none of the images.
 dev = [
+    "httpx2>=2.13.1",
     "pytest",
 ]
 
@@ -47,3 +48,15 @@ dev = [
 # where to find it rather than every test file adjusting sys.path.
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+# Tests that load models/model.joblib. The model is tracked by DVC, not git, so
+# a fresh checkout does not have it:
+#
+#   uv run pytest -m "not needs_model"   # no credentials required
+#   uv run pytest -m "needs_model"       # after `dvc pull`
+#
+# CI runs the first form in its fast job and the second only after fetching the
+# model, which keeps `uv run pytest` working for anyone who clones the repo.
+markers = [
+    "needs_model: requires the trained model and scaler on disk",
+]
