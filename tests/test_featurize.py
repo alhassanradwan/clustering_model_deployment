@@ -10,23 +10,35 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-from omegaconf import OmegaConf
+from typing import cast
+from omegaconf import DictConfig, OmegaConf
 
 from featurize import build_features, build_target
 
-CFG = OmegaConf.create(
-    {
-        "data": {
-            "cancellation_prefix": "C",
-            "drop_non_positive_monetary": True,
-        },
-        "features": {
-            "columns": ["Recency", "Frequency", "Monetary"],
-            "log_transform": True,
-            "scaler": "standard",
-        },
-    }
-)
+
+def make_cfg(scaler: str = "standard") -> DictConfig:
+    """The slice of conf/config.yaml that featurize.py actually reads.
+
+    Built fresh per call rather than merged onto a shared object: OmegaConf.merge
+    is typed as returning DictConfig *or* ListConfig, which does not satisfy the
+    DictConfig these functions ask for.
+    """
+    return OmegaConf.create(
+        {
+            "data": {
+                "cancellation_prefix": "C",
+                "drop_non_positive_monetary": True,
+            },
+            "features": {
+                "columns": ["Recency", "Frequency", "Monetary"],
+                "log_transform": True,
+                "scaler": scaler,
+            },
+        }
+    )
+
+
+CFG = make_cfg()
 
 
 def frame(rows: list[dict]) -> pd.DataFrame:
@@ -75,8 +87,8 @@ def test_a_refund_subtracts_from_monetary() -> None:
     )
 
     row = target.set_index("CustomerID").loc[1]
-    assert row["Monetary"] == pytest.approx(1200.0)  # 1000 + 500 - 300
-    assert row["Frequency"] == 2  # the refund is not a third visit
+    assert float(cast(float, row["Monetary"])) == pytest.approx(1200.0)  # 1000 + 500 - 300
+    assert cast(int, row["Frequency"]) == 2  # the refund is not a third visit
 
 
 def test_recency_ignores_refunds() -> None:
@@ -145,7 +157,7 @@ def test_features_are_logged_scaled_and_the_scaler_comes_back() -> None:
 
 
 def test_scaler_none_returns_the_log_frame_unscaled() -> None:
-    cfg = OmegaConf.merge(CFG, {"features": {"scaler": "none"}})
+    cfg = make_cfg(scaler="none")
     target = pd.DataFrame(
         {"Recency": [1.0, 50.0], "Frequency": [20.0, 3.0], "Monetary": [1000.0, 10.0]}
     )
@@ -157,7 +169,7 @@ def test_scaler_none_returns_the_log_frame_unscaled() -> None:
 
 
 def test_unknown_scaler_is_rejected() -> None:
-    cfg = OmegaConf.merge(CFG, {"features": {"scaler": "quantum"}})
+    cfg = make_cfg(scaler="quantum")
     target = pd.DataFrame(
         {"Recency": [1.0], "Frequency": [1.0], "Monetary": [1.0]}
     )
